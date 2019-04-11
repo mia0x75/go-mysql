@@ -11,7 +11,8 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/shopspring/decimal"
-	"github.com/siddontang/go-log/log"
+	log "github.com/sirupsen/logrus"
+
 	. "github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go/hack"
 )
@@ -428,8 +429,8 @@ func (e *RowsEvent) decodeValue(data []byte, tp byte, meta uint16) (v interface{
 			v = formatZeroTime(0, 0)
 		} else {
 			v = e.parseFracTime(fracTime{
-				Time:                    time.Unix(int64(t), 0),
-				Dec:                     0,
+				Time: time.Unix(int64(t), 0),
+				Dec:  0,
 				timestampStringLocation: e.timestampStringLocation,
 			})
 		}
@@ -705,8 +706,8 @@ func decodeTimestamp2(data []byte, dec uint16, timestampStringLocation *time.Loc
 	}
 
 	return fracTime{
-		Time:                    time.Unix(sec, usec*1000),
-		Dec:                     int(dec),
+		Time: time.Unix(sec, usec*1000),
+		Dec:  int(dec),
 		timestampStringLocation: timestampStringLocation,
 	}, n, nil
 }

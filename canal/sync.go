@@ -7,7 +7,8 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/satori/go.uuid"
-	"github.com/siddontang/go-log/log"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/replication"
 	"github.com/siddontang/go-mysql/schema"
@@ -29,14 +30,20 @@ func (c *Canal) startSyncer() (*replication.BinlogStreamer, error) {
 		if err != nil {
 			return nil, errors.Errorf("start sync replication at binlog %v error %v", pos, err)
 		}
-		log.Infof("start sync binlog at binlog file %v", pos)
+		if !c.cfg.Silence {
+			log.Infof("start sync binlog at binlog file %v", pos)
+		}
 		return s, nil
 	} else {
 		s, err := c.syncer.StartSyncGTID(gset)
 		if err != nil {
-			return nil, errors.Errorf("start sync replication at GTID set %v error %v", gset, err)
+			if !c.cfg.Silence {
+				return nil, errors.Errorf("start sync replication at GTID set %v error %v", gset, err)
+			}
 		}
-		log.Infof("start sync binlog at GTID set %v", gset)
+		if !c.cfg.Silence {
+			log.Infof("start sync binlog at GTID set %v", gset)
+		}
 		return s, nil
 	}
 }
@@ -71,7 +78,9 @@ func (c *Canal) runSyncBinlog() error {
 		case *replication.RotateEvent:
 			pos.Name = string(e.NextLogName)
 			pos.Pos = uint32(e.Position)
-			log.Infof("rotate binlog to %s", pos)
+			if !c.cfg.Silence {
+				log.Infof("rotate binlog to %s", pos)
+			}
 			savePos = true
 			force = true
 			if err = c.eventHandler.OnRotate(e); err != nil {
@@ -86,7 +95,9 @@ func (c *Canal) runSyncBinlog() error {
 				if e != ErrExcludedTable &&
 					e != schema.ErrTableNotExist &&
 					e != schema.ErrMissingTableMeta {
-					log.Errorf("handle rows event at (%s, %d) error %v", pos.Name, curPos, err)
+					if !c.cfg.Silence {
+						log.Errorf("handle rows event at (%s, %d) error %v", pos.Name, curPos, err)
+					}
 					return errors.Trace(err)
 				}
 			}
@@ -150,7 +161,9 @@ func (c *Canal) runSyncBinlog() error {
 			savePos = true
 			force = true
 			c.ClearTableCache(db, table)
-			log.Infof("table structure changed, clear table cache: %s.%s\n", db, table)
+			if !c.cfg.Silence {
+				log.Infof("table structure changed, clear table cache: %s.%s\n", db, table)
+			}
 			if err = c.eventHandler.OnTableChanged(string(db), string(table)); err != nil && errors.Cause(err) != schema.ErrTableNotExist {
 				return errors.Trace(err)
 			}
@@ -221,7 +234,9 @@ func (c *Canal) WaitUntilPos(pos mysql.Position, timeout time.Duration) error {
 			if curPos.Compare(pos) >= 0 {
 				return nil
 			} else {
-				log.Debugf("master pos is %v, wait catching %v", curPos, pos)
+				if !c.cfg.Silence {
+					log.Debugf("master pos is %v, wait catching %v", curPos, pos)
+				}
 				time.Sleep(100 * time.Millisecond)
 			}
 		}

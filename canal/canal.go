@@ -12,7 +12,8 @@ import (
 	"time"
 
 	"github.com/pingcap/errors"
-	"github.com/siddontang/go-log/log"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/siddontang/go-mysql/client"
 	"github.com/siddontang/go-mysql/dump"
 	"github.com/siddontang/go-mysql/mysql"
@@ -210,13 +211,17 @@ func (c *Canal) run() error {
 		close(c.dumpDoneCh)
 
 		if err != nil {
-			log.Errorf("canal dump mysql err: %v", err)
+			if !c.cfg.Silence {
+				log.Errorf("canal dump mysql err: %v", err)
+			}
 			return errors.Trace(err)
 		}
 	}
 
 	if err := c.runSyncBinlog(); err != nil {
-		log.Errorf("canal start sync binlog err: %v", err)
+		if !c.cfg.Silence {
+			log.Errorf("canal start sync binlog err: %v", err)
+		}
 		return errors.Trace(err)
 	}
 
@@ -224,7 +229,9 @@ func (c *Canal) run() error {
 }
 
 func (c *Canal) Close() {
-	log.Infof("closing canal")
+	if !c.cfg.Silence {
+		log.Infof("closing canal")
+	}
 
 	c.m.Lock()
 	defer c.m.Unlock()
@@ -340,7 +347,9 @@ func (c *Canal) GetTable(db string, table string) (*schema.Table, error) {
 			c.errorTablesGetTime[key] = time.Now()
 			c.tableLock.Unlock()
 			// log error and return ErrMissingTableMeta
-			log.Errorf("canal get table meta err: %v", errors.Trace(err))
+			if !c.cfg.Silence {
+				log.Errorf("canal get table meta err: %v", errors.Trace(err))
+			}
 			return nil, schema.ErrMissingTableMeta
 		}
 		return nil, err
@@ -411,6 +420,7 @@ func (c *Canal) prepareSyncer() error {
 		ParseTime:            c.cfg.ParseTime,
 		SemiSyncEnabled:      c.cfg.SemiSyncEnabled,
 		MaxReconnectAttempts: c.cfg.MaxReconnectAttempts,
+		Silence:              c.cfg.Silence,
 	}
 
 	if strings.Contains(c.cfg.Addr, "/") {

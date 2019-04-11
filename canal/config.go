@@ -74,6 +74,8 @@ type Config struct {
 	// Set to change the maximum number of attempts to re-establish a broken
 	// connection
 	MaxReconnectAttempts int `toml:"max_reconnect_attempts"`
+
+	Silence bool
 }
 
 func NewConfigWithFile(name string) (*Config, error) {

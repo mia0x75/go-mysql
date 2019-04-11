@@ -13,7 +13,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	. "github.com/pingcap/check"
 	"github.com/pingcap/errors"
-	"github.com/siddontang/go-log/log"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/test_util/test_keys"
 )

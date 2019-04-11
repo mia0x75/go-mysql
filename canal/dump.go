@@ -9,7 +9,8 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/shopspring/decimal"
-	"github.com/siddontang/go-log/log"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/schema"
 )
@@ -40,7 +41,9 @@ func (h *dumpParseHandler) Data(db string, table string, values []string) error 
 			e == schema.ErrMissingTableMeta {
 			return nil
 		}
-		log.Errorf("get %s.%s information err: %v", db, table, err)
+		if !h.c.cfg.Silence {
+			log.Errorf("get %s.%s information err: %v", db, table, err)
+		}
 		return errors.Trace(err)
 	}
 
@@ -55,37 +58,49 @@ func (h *dumpParseHandler) Data(db string, table string, values []string) error 
 			if tableInfo.Columns[i].Type == schema.TYPE_NUMBER {
 				n, err := strconv.ParseInt(v, 10, 64)
 				if err != nil {
-					return fmt.Errorf("parse row %v at %d error %v, int expected", values, i, err)
+					if !h.c.cfg.Silence {
+						return fmt.Errorf("parse row %v at %d error %v, int expected", values, i, err)
+					}
 				}
 				vs[i] = n
 			} else if tableInfo.Columns[i].Type == schema.TYPE_FLOAT {
 				f, err := strconv.ParseFloat(v, 64)
 				if err != nil {
-					return fmt.Errorf("parse row %v at %d error %v, float expected", values, i, err)
+					if !h.c.cfg.Silence {
+						return fmt.Errorf("parse row %v at %d error %v, float expected", values, i, err)
+					}
 				}
 				vs[i] = f
 			} else if tableInfo.Columns[i].Type == schema.TYPE_DECIMAL {
 				if h.c.cfg.UseDecimal {
 					d, err := decimal.NewFromString(v)
 					if err != nil {
-						return fmt.Errorf("parse row %v at %d error %v, decimal expected", values, i, err)
+						if !h.c.cfg.Silence {
+							return fmt.Errorf("parse row %v at %d error %v, decimal expected", values, i, err)
+						}
 					}
 					vs[i] = d
 				} else {
 					f, err := strconv.ParseFloat(v, 64)
 					if err != nil {
-						return fmt.Errorf("parse row %v at %d error %v, float expected", values, i, err)
+						if !h.c.cfg.Silence {
+							return fmt.Errorf("parse row %v at %d error %v, float expected", values, i, err)
+						}
 					}
 					vs[i] = f
 				}
 			} else if strings.HasPrefix(v, "0x") {
 				buf, err := hex.DecodeString(v[2:])
 				if err != nil {
-					return fmt.Errorf("parse row %v at %d error %v, hex literal expected", values, i, err)
+					if !h.c.cfg.Silence {
+						return fmt.Errorf("parse row %v at %d error %v, hex literal expected", values, i, err)
+					}
 				}
 				vs[i] = string(buf)
 			} else {
-				return fmt.Errorf("parse row %v error, invalid type at %d", values, i)
+				if !h.c.cfg.Silence {
+					return fmt.Errorf("parse row %v error, invalid type at %d", values, i)
+				}
 			}
 		} else {
 			vs[i] = v[1 : len(v)-1]
@@ -145,13 +160,17 @@ func (c *Canal) dump() error {
 		if err != nil {
 			return errors.Trace(err)
 		}
-		log.Infof("skip master data, get current binlog position %v", pos)
+		if !h.c.cfg.Silence {
+			log.Infof("skip master data, get current binlog position %v", pos)
+		}
 		h.name = pos.Name
 		h.pos = uint64(pos.Pos)
 	}
 
 	start := time.Now()
-	log.Info("try dump MySQL and parse")
+	if !h.c.cfg.Silence {
+		log.Info("try dump MySQL and parse")
+	}
 	if err := c.dumper.DumpAndParse(h); err != nil {
 		return errors.Trace(err)
 	}
@@ -166,8 +185,10 @@ func (c *Canal) dump() error {
 		c.master.UpdateGTIDSet(h.gset)
 		startPos = h.gset
 	}
-	log.Infof("dump MySQL and parse OK, use %0.2f seconds, start binlog replication at %s",
-		time.Now().Sub(start).Seconds(), startPos)
+	if !h.c.cfg.Silence {
+		log.Infof("dump MySQL and parse OK, use %0.2f seconds, start binlog replication at %s",
+			time.Now().Sub(start).Seconds(), startPos)
+	}
 	return nil
 }
 
@@ -177,12 +198,16 @@ func (c *Canal) tryDump() error {
 	if (len(pos.Name) > 0 && pos.Pos > 0) ||
 		(gset != nil && gset.String() != "") {
 		// we will sync with binlog name and position
-		log.Infof("skip dump, use last binlog replication pos %s or GTID set %v", pos, gset)
+		if !c.cfg.Silence {
+			log.Infof("skip dump, use last binlog replication pos %s or GTID set %v", pos, gset)
+		}
 		return nil
 	}
 
 	if c.dumper == nil {
-		log.Info("skip dump, no mysqldump")
+		if !c.cfg.Silence {
+			log.Info("skip dump, no mysqldump")
+		}
 		return nil
 	}
 
